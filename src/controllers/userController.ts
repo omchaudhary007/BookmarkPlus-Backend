@@ -5,6 +5,42 @@ import { User } from "../models/User";
 import { signToken } from "../utils/jwt";
 import { isValidEmail, isValidPassword } from "../utils/validators";
 import { IAuthRequest } from "../types/types";
+import { EmailVerification } from "../models/EmailVerification";
+import { sendVerification } from "../utils/resend";
+
+export async function verifyEmail(req: Request, res: Response) {
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({
+        message: "Invalid token",
+      });
+    }
+
+    const record = await EmailVerification.findOne({ token });
+
+    if (!record) {
+      return res.status(400).json({
+        message: "Token expired",
+      });
+    }
+
+    await User.findByIdAndUpdate(record.userId, { emailVerified: true });
+
+    await EmailVerification.deleteOne({
+      _id: record._id,
+    });
+
+    return res.json({
+      message: "Email verified successfully.",
+    });
+  } catch {
+    return res.status(500).json({
+      message: "Verification failed",
+    });
+  }
+}
 
 export async function signup(req: Request, res: Response) {
   try {
@@ -50,9 +86,9 @@ export async function signup(req: Request, res: Response) {
       sameSite: "lax",
       secure: false,
     });
-
+    await sendVerification(user._id.toString(), email); // send verification mail
     return res.status(201).json({
-      message:"user created successfully",
+      message: "user created successfully",
       id: user._id,
       email: user.email,
       emailVerified: user.emailVerified,
@@ -99,6 +135,7 @@ export async function login(req: Request, res: Response) {
     });
 
     return res.json({
+      message: "Login successful",
       id: user._id,
       email: user.email,
       emailVerified: user.emailVerified,
@@ -126,18 +163,57 @@ export async function getProfile(req: IAuthRequest, res: Response) {
       });
     }
 
-    const user = await User.findById(req.user._id).select("-password");
-
-    if (!user) {
-      return res.status(404).json({
-        message: "User not found",
-      });
-    }
-
-    return res.json(user);
+    const { password, ...userData } = req.user.toObject();
+    return res.json({
+      message: "Profile fetched successfully",
+      user: userData,
+    });
   } catch {
     return res.status(500).json({
       message: "Failed to load profile",
+    });
+  }
+}
+
+export async function resendVerification(req: IAuthRequest, res: Response) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    if (req.user.emailVerified) {
+      return res.status(400).json({
+        message: "Already verified",
+      });
+    }
+
+    const existing = await EmailVerification.findOne({
+      userId: req.user._id,
+    });
+
+    if (existing && existing.expiresAt > new Date()) {
+      return res.status(400).json({
+        message: "Verification already sent. Check your email.",
+      });
+    }
+
+    const mailStatus = await sendVerification(
+      req.user._id.toString(),
+      req.user.email,
+    );
+    if (!mailStatus) {
+      return res.status(503).json({
+        message: "Email service is down. Try later.",
+      });
+    }
+    return res.json({
+      message: "verification sent. checkout your mail.",
+    });
+  } catch {
+    return res.status(500).json({
+      message: "Failed to send email",
     });
   }
 }
