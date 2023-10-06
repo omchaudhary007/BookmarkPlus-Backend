@@ -217,3 +217,48 @@ export async function resendVerification(req: IAuthRequest, res: Response) {
     });
   }
 }
+
+export async function changePassword(req: IAuthRequest, res: Response) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        message: "All fields required",
+      });
+    }
+
+    if (!isValidPassword(newPassword)) {
+      return res.status(400).json({
+        message: "Invalid new password",
+      });
+    }
+
+    const match = await bcrypt.compare(oldPassword, req.user.password);
+
+    if (!match) {
+      return res.status(400).json({
+        message: "password is incorrect.",
+      });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+
+    req.user.password = hashed;
+    await req.user.save();
+
+    return res.json({
+      message: "Password updated successfully",
+    });
+  } catch {
+    return res.status(500).json({
+      message: "Failed to update password",
+    });
+  }
+}

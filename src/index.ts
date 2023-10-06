@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import { connectDb } from "./config/db";
 import { env } from "./config/env";
 import userRoutes from "./routes/userRoutes";
+import bookmarkRoutes from "./routes/bookmarkRoutes";
 
 const app = express();
 const PORT = env.PORT || 999;
@@ -20,6 +21,7 @@ app.get("/health", (req: Request, res: Response) => {
 });
 
 app.use("/api/users", userRoutes);
+app.use("/api/bookmarks",bookmarkRoutes);
 
 connectDb(MONGO_URI).then(() => {
   app.listen(PORT, () => {
