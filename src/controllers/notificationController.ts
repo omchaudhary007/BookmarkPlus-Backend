@@ -20,7 +20,7 @@ export async function getNotifications(req: IAuthRequest, res: Response) {
     return res.json({
       message: "Notifications fetched",
       notifications,
-      count:notifications.length
+      count: notifications.length,
     });
   } catch {
     return res.status(500).json({
