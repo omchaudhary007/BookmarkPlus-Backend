@@ -8,6 +8,7 @@ import {
   verifyEmail,
   resendVerification,
   changePassword,
+  toggleEmailReminders,
 } from "../controllers/userController";
 
 import { isAuth } from "../middleware/auth";
@@ -17,6 +18,12 @@ const router = Router();
 router.post("/signup", signup);
 router.post("/login", login);
 router.post("/forget-password", isAuth, changePassword);
+router.patch(
+  "/toggle-reminders",
+  isAuth,
+  toggleEmailReminders
+);
+
 
 router.get("/verify-email", isAuth, verifyEmail);
 router.get("/profile", isAuth, getProfile);

@@ -26,7 +26,10 @@ export async function verifyEmail(req: Request, res: Response) {
       });
     }
 
-    await User.findByIdAndUpdate(record.userId, { emailVerified: true });
+    await User.findByIdAndUpdate(record.userId, {
+      emailVerified: true,
+      emailRemindersEnabled: true,
+    });
 
     await EmailVerification.deleteOne({
       _id: record._id,
@@ -259,6 +262,31 @@ export async function changePassword(req: IAuthRequest, res: Response) {
   } catch {
     return res.status(500).json({
       message: "Failed to update password",
+    });
+  }
+}
+
+export async function toggleEmailReminders(req: IAuthRequest, res: Response) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    req.user.emailRemindersEnabled = !req.user.emailRemindersEnabled;
+
+    await req.user.save();
+
+    return res.json({
+      message: req.user.emailRemindersEnabled
+        ? "Reminders enabled"
+        : "Reminders disabled",
+      enabled: req.user.emailRemindersEnabled,
+    });
+  } catch {
+    return res.status(500).json({
+      message: "Failed to update reminder setting",
     });
   }
 }

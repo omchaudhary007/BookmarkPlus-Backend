@@ -14,7 +14,7 @@ export interface IBookmark extends Document {
 
   reminderEnabled: boolean;
   reminderType?: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY";
-  reminderDate?: Date;
+  reminderStartDate?: Date;
   nextDue?: Date;
   lastSentAt?: Date;
 }
@@ -76,10 +76,8 @@ const bookmarkSchema = new Schema<IBookmark>(
       enum: ["ONCE", "DAILY", "WEEKLY", "MONTHLY"],
     },
 
-    reminderDate: Date,
-
+    reminderStartDate: Date,
     nextDue: Date,
-
     lastSentAt: Date,
   },
   { timestamps: true },

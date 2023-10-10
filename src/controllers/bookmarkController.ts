@@ -17,17 +17,29 @@ export async function createBookmark(req: IAuthRequest, res: Response) {
       });
     }
 
-    const body = req.body as IBookmark;
+    const body = req.body as Partial<IBookmark>;
 
-    const { title, url, note, category, tags, priority } = body;
-
-    if (!title) {
+    const {
+      title,
+      url,
+      note,
+      category,
+      tags,
+      priority,
+      reminderEnabled,
+      reminderType,
+      reminderStartDate,
+    } = body;
+    if (!title || !url) {
       return res.status(400).json({
         message: "Title and URL required",
       });
     }
+
     if (!isValidUrl(url)) {
-      return res.status(400).json({ message: "Invalid URL" });
+      return res.status(400).json({
+        message: "Invalid URL",
+      });
     }
 
     if (!isValidNote(note)) {
@@ -41,11 +53,35 @@ export async function createBookmark(req: IAuthRequest, res: Response) {
         message: "Category too long",
       });
     }
-
     if (!isValidTags(tags)) {
       return res.status(400).json({
         message: "Invalid tags",
       });
+    }
+
+    if (priority && !["HIGH", "MEDIUM", "LOW"].includes(priority)) {
+      return res.status(400).json({
+        message: "Invalid priority",
+      });
+    }
+
+    let nextDue: Date | null = null;
+
+    if (reminderEnabled) {
+      if (!reminderType || !reminderStartDate) {
+        return res.status(400).json({
+          message: "Reminder type and date required",
+        });
+      }
+
+      const date = new Date(reminderStartDate);
+
+      if (isNaN(date.getTime())) {
+        return res.status(400).json({
+          message: "Invalid reminder date",
+        });
+      }
+      nextDue = date;
     }
 
     const bookmark = await Bookmark.create({
@@ -56,6 +92,12 @@ export async function createBookmark(req: IAuthRequest, res: Response) {
       category,
       tags,
       priority,
+
+      reminderEnabled: !!reminderEnabled,
+      reminderType: reminderEnabled ? reminderType : undefined,
+      reminderStartDate: reminderEnabled ? nextDue : undefined,
+      nextDue,
+      lastSentAt: null,
     });
 
     return res.status(201).json({
@@ -176,16 +218,25 @@ export async function updateBookmark(req: IAuthRequest, res: Response) {
       });
     }
 
-    const { title, url, note, category, tags, status, priority } =
-      req.body as Partial<IBookmark>;
+    const {
+      title,
+      url,
+      note,
+      category,
+      tags,
+      status,
+      priority,
+
+      reminderEnabled,
+      reminderType,
+      reminderStartDate,
+    } = req.body as Partial<IBookmark>;
 
     const updateData: Partial<IBookmark> = {};
 
     if (title !== undefined) {
       if (!title.trim()) {
-        return res.status(400).json({
-          message: "Invalid title",
-        });
+        return res.status(400).json({ message: "Invalid title" });
       }
 
       updateData.title = title;
@@ -193,9 +244,7 @@ export async function updateBookmark(req: IAuthRequest, res: Response) {
 
     if (url !== undefined) {
       if (!isValidUrl(url)) {
-        return res.status(400).json({
-          message: "Invalid URL",
-        });
+        return res.status(400).json({ message: "Invalid URL" });
       }
 
       updateData.url = url;
@@ -203,9 +252,7 @@ export async function updateBookmark(req: IAuthRequest, res: Response) {
 
     if (note !== undefined) {
       if (!isValidNote(note)) {
-        return res.status(400).json({
-          message: "Note too long",
-        });
+        return res.status(400).json({ message: "Note too long" });
       }
 
       updateData.note = note;
@@ -213,9 +260,7 @@ export async function updateBookmark(req: IAuthRequest, res: Response) {
 
     if (category !== undefined) {
       if (!isValidCategory(category)) {
-        return res.status(400).json({
-          message: "Category too long",
-        });
+        return res.status(400).json({ message: "Category too long" });
       }
 
       updateData.category = category;
@@ -223,9 +268,7 @@ export async function updateBookmark(req: IAuthRequest, res: Response) {
 
     if (tags !== undefined) {
       if (!isValidTags(tags)) {
-        return res.status(400).json({
-          message: "Invalid tags",
-        });
+        return res.status(400).json({ message: "Invalid tags" });
       }
 
       updateData.tags = tags;
@@ -233,9 +276,7 @@ export async function updateBookmark(req: IAuthRequest, res: Response) {
 
     if (status !== undefined) {
       if (!["NOT_STARTED", "IN_PROGRESS", "DONE"].includes(status)) {
-        return res.status(400).json({
-          message: "Invalid status",
-        });
+        return res.status(400).json({ message: "Invalid status" });
       }
 
       updateData.status = status;
@@ -243,12 +284,96 @@ export async function updateBookmark(req: IAuthRequest, res: Response) {
 
     if (priority !== undefined) {
       if (!["HIGH", "MEDIUM", "LOW"].includes(priority)) {
-        return res.status(400).json({
-          message: "Invalid priority",
-        });
+        return res.status(400).json({ message: "Invalid priority" });
       }
 
       updateData.priority = priority;
+    }
+
+    if (reminderEnabled === false) {
+      updateData.reminderEnabled = false;
+
+      updateData.reminderType = undefined;
+      updateData.reminderStartDate = undefined;
+      updateData.nextDue = undefined;
+      updateData.lastSentAt = undefined;
+    }
+
+    if (reminderEnabled === true) {
+      if (!reminderType || !reminderStartDate) {
+        return res.status(400).json({
+          message: "Reminder type and start date required",
+        });
+      }
+
+      if (!["ONCE", "DAILY", "WEEKLY", "MONTHLY"].includes(reminderType)) {
+        return res.status(400).json({
+          message: "Invalid reminder type",
+        });
+      }
+
+      const date = new Date(reminderStartDate);
+
+      if (isNaN(date.getTime())) {
+        return res.status(400).json({
+          message: "Invalid reminder date",
+        });
+      }
+
+      updateData.reminderEnabled = true;
+      updateData.reminderType = reminderType;
+      updateData.reminderStartDate = date;
+
+      updateData.nextDue = date;
+      updateData.lastSentAt = undefined;
+    }
+
+    if (
+      reminderEnabled === undefined &&
+      (reminderType !== undefined || reminderStartDate !== undefined)
+    ) {
+      const existing = await Bookmark.findOne({
+        _id: req.params.id,
+        userId: req.user._id,
+      });
+
+      if (!existing) {
+        return res.status(404).json({
+          message: "Bookmark not found",
+        });
+      }
+
+      if (!existing.reminderEnabled) {
+        return res.status(400).json({
+          message: "Enable reminder first",
+        });
+      }
+
+      if (!reminderType || !reminderStartDate) {
+        return res.status(400).json({
+          message: "Reminder type and start date required",
+        });
+      }
+
+      if (!["ONCE", "DAILY", "WEEKLY", "MONTHLY"].includes(reminderType)) {
+        return res.status(400).json({
+          message: "Invalid reminder type",
+        });
+      }
+
+      const date = new Date(reminderStartDate);
+
+      if (isNaN(date.getTime())) {
+        return res.status(400).json({
+          message: "Invalid reminder date",
+        });
+      }
+
+      updateData.reminderType = reminderType;
+      updateData.reminderStartDate = date;
+
+      updateData.nextDue = date;
+      updateData.lastSentAt = undefined;
     }
 
     if (Object.keys(updateData).length === 0) {
