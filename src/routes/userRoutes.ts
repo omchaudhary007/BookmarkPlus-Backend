@@ -9,21 +9,22 @@ import {
   resendVerification,
   changePassword,
   toggleEmailReminders,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/userController";
 
 import { isAuth } from "../middleware/auth";
+import isVerified from "../middleware/isVerified";
 
 const router = Router();
 
 router.post("/signup", signup);
 router.post("/login", login);
-router.post("/forget-password", isAuth, changePassword);
-router.patch(
-  "/toggle-reminders",
-  isAuth,
-  toggleEmailReminders
-);
+router.post("/change-password", isAuth, isVerified, changePassword);
+router.post("/forget-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
+router.patch("/toggle-reminders", isAuth, isVerified, toggleEmailReminders);
 
 router.get("/verify-email", isAuth, verifyEmail);
 router.get("/profile", isAuth, getProfile);

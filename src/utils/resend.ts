@@ -2,7 +2,10 @@ import { Resend } from "resend";
 import { env } from "../config/env";
 import crypto from "crypto";
 import { EmailVerification } from "../models/EmailVerification";
-import { verificationEmailTemplate } from "./mailTemplate";
+import {
+  resetPasswordEmailTemplate,
+  verificationEmailTemplate,
+} from "./mailTemplate";
 
 const resend = new Resend(env.RESEND_API_KEY);
 
@@ -15,7 +18,11 @@ export async function sendEmail(to: string, subject: string, html: string) {
   });
 }
 
-export async function sendVerification(userId: string, email: string) {
+export async function sendVerification(
+  userId: string,
+  email: string,
+  type: "VERIFY" | "RESET",
+) {
   try {
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -26,10 +33,14 @@ export async function sendVerification(userId: string, email: string) {
       token,
       expiresAt,
     });
-
-    const html = verificationEmailTemplate(token);
-
-    const result = await sendEmail(email, "Verify your email", html);
+    let result;
+    if (type == "VERIFY") {
+      const html = verificationEmailTemplate(token);
+      result = await sendEmail(email, "Verify your email", html);
+    } else {
+      const html = resetPasswordEmailTemplate(token);
+      result = await sendEmail(email, "Reset your password", html);
+    }
 
     if (result.error) {
       return false;

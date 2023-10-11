@@ -6,7 +6,8 @@ import { signToken } from "../utils/jwt";
 import { isValidEmail, isValidPassword } from "../utils/validators";
 import { IAuthRequest } from "../types/types";
 import { EmailVerification } from "../models/EmailVerification";
-import { sendVerification } from "../utils/resend";
+import { sendEmail, sendVerification } from "../utils/resend";
+import { passwordChangedEmailTemplate } from "../utils/mailTemplate";
 
 export async function verifyEmail(req: Request, res: Response) {
   try {
@@ -89,7 +90,7 @@ export async function signup(req: Request, res: Response) {
       sameSite: "lax",
       secure: false,
     });
-    await sendVerification(user._id.toString(), email); // send verification mail
+    await sendVerification(user._id.toString(), email, "VERIFY"); // send verification mail
     return res.status(201).json({
       message: "user created successfully",
       id: user._id,
@@ -205,6 +206,7 @@ export async function resendVerification(req: IAuthRequest, res: Response) {
     const mailStatus = await sendVerification(
       req.user._id.toString(),
       req.user.email,
+      "VERIFY",
     );
     if (!mailStatus) {
       return res.status(503).json({
@@ -223,7 +225,8 @@ export async function resendVerification(req: IAuthRequest, res: Response) {
 
 export async function changePassword(req: IAuthRequest, res: Response) {
   try {
-    if (!req.user) {
+    const user = req.user;
+    if (!user) {
       return res.status(401).json({
         message: "Unauthorized",
       });
@@ -243,7 +246,7 @@ export async function changePassword(req: IAuthRequest, res: Response) {
       });
     }
 
-    const match = await bcrypt.compare(oldPassword, req.user.password);
+    const match = await bcrypt.compare(oldPassword, user.password);
 
     if (!match) {
       return res.status(400).json({
@@ -253,8 +256,11 @@ export async function changePassword(req: IAuthRequest, res: Response) {
 
     const hashed = await bcrypt.hash(newPassword, 10);
 
-    req.user.password = hashed;
-    await req.user.save();
+    user.password = hashed;
+    await user.save();
+
+    const html = passwordChangedEmailTemplate();
+    await sendEmail(user.email, "Your Bookmark+ password was changed", html);
 
     return res.json({
       message: "Password updated successfully",
@@ -262,6 +268,85 @@ export async function changePassword(req: IAuthRequest, res: Response) {
   } catch {
     return res.status(500).json({
       message: "Failed to update password",
+    });
+  }
+}
+
+export async function forgotPassword(req: Request, res: Response) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Email required",
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.json({
+        message: "If this email exists, a reset link has been sent",
+      });
+    }
+
+    await sendVerification(user._id.toString(), email, "RESET");
+
+    return res.json({
+      message: "Password reset link sent",
+    });
+  } catch {
+    return res.status(500).json({
+      message: "Failed to send reset link",
+    });
+  }
+}
+
+export async function resetPassword(req: Request, res: Response) {
+  try {
+    const { token } = req.query;
+    const { password } = req.body;
+
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({
+        message: "Invalid token",
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        message: "Password required",
+      });
+    }
+
+    if (!isValidPassword(password)) {
+      return res.status(400).json({
+        message: "Invalid password",
+      });
+    }
+
+    const record = await EmailVerification.findOne({ token });
+
+    if (!record || record.expiresAt < new Date()) {
+      return res.status(400).json({
+        message: "Token expired",
+      });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+
+    await User.findByIdAndUpdate(record.userId, {
+      password: hashed,
+    });
+
+    await EmailVerification.deleteOne({ _id: record._id });
+
+    return res.json({
+      message: "Password reset successful",
+    });
+  } catch {
+    return res.status(500).json({
+      message: "Password reset failed",
     });
   }
 }

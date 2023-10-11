@@ -10,17 +10,18 @@ import {
 } from "../controllers/bookmarkController";
 
 import { isAuth } from "../middleware/auth";
+import isVerified from "../middleware/isVerified";
 
 const router = Router();
 
-router.get("/list", isAuth, getBookmarks);
-router.get("/view/:id", isAuth, getBookmarkById);
+router.get("/list", isAuth, isVerified, getBookmarks);
+router.get("/view/:id", isAuth, isVerified, getBookmarkById);
 
-router.post("/create", isAuth, createBookmark);
-router.post("/remove-many", isAuth, deleteManyBookmarks);
+router.post("/create", isAuth, isVerified, createBookmark);
+router.post("/remove-many", isAuth, isVerified, deleteManyBookmarks);
 
-router.put("/update/:id", isAuth, updateBookmark);
+router.put("/update/:id", isAuth, isVerified, updateBookmark);
 
-router.delete("/remove/:id", isAuth, deleteBookmark);
+router.delete("/remove/:id", isAuth, isVerified, deleteBookmark);
 
 export default router;
