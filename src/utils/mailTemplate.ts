@@ -364,8 +364,8 @@ export function passwordChangedEmailTemplate() {
   `;
 }
 
-export function resetPasswordEmailTemplate(token: string) {
-  const link = `${process.env.APP_PUBLIC_BASE_URL}/reset-password?token=${token}`;
+export function resetPasswordEmailTemplate(token: string, expiresAt: Date) {
+  const link = `${process.env.APP_PUBLIC_BASE_URL}/reset-password?token=${token}&expireAt=${expiresAt}`;
 
   return `
   <!DOCTYPE html>
