@@ -38,7 +38,7 @@ export async function sendVerification(
       const html = verificationEmailTemplate(token);
       result = await sendEmail(email, "Verify your email", html);
     } else {
-      const html = resetPasswordEmailTemplate(token);
+      const html = resetPasswordEmailTemplate(token,expiresAt);
       result = await sendEmail(email, "Reset your password", html);
     }
 
